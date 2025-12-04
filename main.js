@@ -1,6 +1,7 @@
-const { app, BrowserWindow, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, Tray, Menu, nativeImage, shell, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { version } = require('./package.json');
+const { initUpdater, checkForUpdates, autoCheckOnStartup } = require('./updater');
 
 // 应用标题
 const APP_TITLE = `ChatECNU Desktop v${version}`;
@@ -37,7 +38,9 @@ function createWindow() {
     title: APP_TITLE,
     webPreferences: {
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      sandbox: false,
+      preload: path.join(__dirname, 'preload.js')
     }
   });
 
@@ -76,6 +79,16 @@ function createWindow() {
   });
 }
 
+// IPC: 显示保存对话框
+ipcMain.handle('show-save-dialog', async (event, defaultName) => {
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: '导出表格',
+    defaultPath: defaultName,
+    filters: [{ name: 'Excel 文件', extensions: ['xlsx'] }]
+  });
+  return result.filePath; // 用户取消时返回 undefined
+});
+
 // Electron 初始化完成并准备创建浏览器窗口时调用
 app.whenReady().then(() => {
   createWindow();
@@ -96,6 +109,15 @@ app.whenReady().then(() => {
           mainWindow.show();
           mainWindow.focus();
         }
+      }
+    },
+    {
+      type: 'separator'
+    },
+    {
+      label: '检查更新',
+      click: () => {
+        checkForUpdates(true);
       }
     },
     {
@@ -127,6 +149,12 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
+
+  // 初始化更新器（仅在打包后启用）
+  if (isPackaged) {
+    initUpdater(mainWindow);
+    autoCheckOnStartup(3000); // 延迟 3 秒检查更新
+  }
 });
 
 // 当所有窗口关闭时不退出，保持应用在后台运行（通过系统托盘）
