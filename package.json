@@ -1,0 +1,57 @@
+{
+  "name": "chatecnu-desktop-app",
+  "version": "1.1.5",
+  "description": "Desktop Application for chat.ecnu.edu.cn",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win"
+  },
+  "keywords": [
+    "electron",
+    "desktop",
+    "chat"
+  ],
+  "author": "ChatECNU Team @ ECNU",
+  "license": "ECNU",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "build": {
+    "appId": "com.chatecnu.desktop",
+    "productName": "Chat ECNU",
+    "directories": {
+      "output": "dist"
+    },
+    "extraResources": [
+      {
+        "from": "build/favicon.ico",
+        "to": "favicon.ico"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/favicon.ico",
+      "sign": null,
+      "signingHashAlgorithms": null,
+      "signDlls": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}
+
