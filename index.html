@@ -84,6 +84,13 @@
       <div class="titlebar-title">ChatECNU Desktop</div>
       <!-- 菜单 -->
       <div class="titlebar-menu">
+        <button id="btn-refresh" title="刷新页面" style="margin-right: 10px; display: flex; align-items: center; justify-content: center; padding: 4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M23 4v6h-6"></path>
+            <path d="M1 20v-6h6"></path>
+            <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+          </svg>
+        </button>
         <div id="update-ring" class="update-progress-container">
           <div class="loading-spinner"></div>
         </div>
@@ -97,15 +104,45 @@
   <script>
     const { ipcRenderer } = require('electron');
 
-    const ringEl = document.getElementById('update-ring');
+    const ringContainer = document.getElementById('update-ring');
     const btnUpdate = document.getElementById('btn-update');
+    const btnRefresh = document.getElementById('btn-refresh');
     
     let isUpdateAvailable = false;
     let isUpdateDownloaded = false;
 
+    // 刷新按钮
+    btnRefresh.onclick = () => {
+      ipcRenderer.send('reload-page');
+    };
+
     // 显示/隐藏 Loading Ring
-    function toggleRing(show) {
-      ringEl.style.display = show ? 'flex' : 'none';
+    // type: 'spinner' (转圈) | 'progress' (进度) | 'none' (隐藏)
+    function setRingState(type, percent = 0) {
+      if (type === 'none') {
+        ringContainer.style.display = 'none';
+        ringContainer.innerHTML = '';
+        return;
+      }
+      
+      ringContainer.style.display = 'flex';
+      
+      if (type === 'spinner') {
+        ringContainer.innerHTML = '<div class="loading-spinner"></div>';
+      } else if (type === 'progress') {
+        const radius = 6;
+        const circumference = 2 * Math.PI * radius;
+        const offset = circumference - (percent / 100) * circumference;
+        
+        ringContainer.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 16 16" style="transform: rotate(-90deg);">
+            <circle cx="8" cy="8" r="${radius}" stroke="rgba(255,255,255,0.3)" stroke-width="2" fill="none"/>
+            <circle cx="8" cy="8" r="${radius}" stroke="#fff" stroke-width="2" fill="none" 
+                    stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" 
+                    stroke-linecap="round" />
+          </svg>
+        `;
+      }
     }
 
     // 绑定事件
@@ -113,18 +150,19 @@
       if (isUpdateDownloaded) {
         // 状态3：点击安装
         ipcRenderer.send('install-update');
-        btnUpdate.disabled = true;
+        // 不禁用按钮，以便用户在取消弹窗后能再次点击
+        // 弹窗是模态的，会阻止重复点击
       } else if (isUpdateAvailable) {
         // 状态2：点击下载
         ipcRenderer.send('download-update');
         btnUpdate.textContent = '下载中...'; 
         btnUpdate.disabled = true; 
-        toggleRing(true);
+        setRingState('progress', 0); // 初始显示 0% 进度环
       } else {
         // 状态1：检查更新
         ipcRenderer.send('check-for-updates');
         btnUpdate.disabled = true;
-        toggleRing(true);
+        setRingState('spinner');
       }
     };
 
@@ -136,7 +174,7 @@
     // 发现新版本
     ipcRenderer.on('update-available', (event, info) => {
       isUpdateAvailable = true;
-      toggleRing(false); 
+      setRingState('none'); 
       btnUpdate.disabled = false;
       btnUpdate.textContent = '立即下载';
     });
@@ -144,27 +182,27 @@
     // 无新版本
     ipcRenderer.on('update-not-available', () => {
       isUpdateAvailable = false;
-      toggleRing(false); // 瞬间结束
+      setRingState('none');
       btnUpdate.disabled = false;
       btnUpdate.textContent = '检查更新';
     });
 
-    // 下载中（只接收信号，不处理进度数字）
-    ipcRenderer.on('update-download-progress', () => {
-      toggleRing(true);
+    // 下载中（接收进度数字）
+    ipcRenderer.on('update-download-progress', (event, percent) => {
+      setRingState('progress', percent);
     });
 
     // 下载完成
     ipcRenderer.on('update-downloaded', () => {
       isUpdateDownloaded = true;
-      toggleRing(false);
+      setRingState('none');
       btnUpdate.disabled = false;
       btnUpdate.textContent = '立即安装';
     });
 
     // 错误处理
     ipcRenderer.on('update-error', () => {
-      toggleRing(false);
+      setRingState('none');
       btnUpdate.disabled = false;
       btnUpdate.textContent = '检查更新'; 
       isUpdateAvailable = false;

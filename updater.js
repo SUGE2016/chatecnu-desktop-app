@@ -41,9 +41,9 @@ function initUpdater(win) {
 
   // 下载进度
   autoUpdater.on('download-progress', (progress) => {
-    // 只需要通知前端正在下载，不需要具体进度数字
+    // 通知前端下载进度
     if (mainWindow) {
-      mainWindow.webContents.send('update-download-progress');
+      mainWindow.webContents.send('update-download-progress', progress.percent);
     }
   });
 
@@ -119,17 +119,6 @@ module.exports = {
   checkForUpdates,
   downloadUpdate,
   quitAndInstall,
-  autoCheckOnStartup
-};
-function autoCheckOnStartup(delay = 3000) {
-  setTimeout(() => {
-    checkForUpdates(false);
-  }, delay);
-}
-
-module.exports = {
-  initUpdater,
-  checkForUpdates,
   autoCheckOnStartup
 };
 

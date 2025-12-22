@@ -51,6 +51,9 @@ function createWindow() {
   // 加载 App Shell (包含自定义标题栏)
   mainWindow.loadFile('index.html');
 
+  // 移除默认菜单（防止 Ctrl+R 刷新等意外操作）
+  Menu.setApplicationMenu(null);
+
   // 初始化图标传给 Shell
   mainWindow.webContents.on('did-finish-load', () => {
     // 读取图标并转换为 dataURL 发送给渲染进程
@@ -126,6 +129,16 @@ function createWindow() {
     }
   });
 
+  // 拦截键盘事件，禁用刷新快捷键
+  view.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && input.key.toLowerCase() === 'r') {
+      event.preventDefault();
+    }
+    if (input.key === 'F5') {
+      event.preventDefault();
+    }
+  });
+
   // 加载目标网站
   view.webContents.loadURL('https://chat.ecnu.edu.cn');
 
@@ -161,6 +174,26 @@ ipcMain.handle('show-save-dialog', async (event, defaultName) => {
 // IPC: 检查更新
 ipcMain.on('check-for-updates', () => checkForUpdates(true));
 
+// IPC: 刷新页面
+ipcMain.on('reload-page', () => {
+  if (view && view.webContents) {
+    // 刷新前确认
+    const choice = dialog.showMessageBoxSync(mainWindow, {
+      type: 'question',
+      title: '刷新页面',
+      message: '确定要刷新页面吗？',
+      detail: '刷新可能会导致未保存的数据丢失。',
+      buttons: ['刷新', '取消'],
+      defaultId: 0,
+      cancelId: 1
+    });
+
+    if (choice === 0) {
+      view.webContents.reload();
+    }
+  }
+});
+
 // IPC: 下载更新
 ipcMain.on('download-update', () => {
   const { downloadUpdate } = require('./updater');
@@ -169,13 +202,25 @@ ipcMain.on('download-update', () => {
 
 // IPC: 安装更新
 ipcMain.on('install-update', () => {
-  const { quitAndInstall } = require('./updater');
-  // 关键修复：移除所有阻止窗口关闭的监听器
-  if (mainWindow) {
-    mainWindow.removeAllListeners('close');
-    mainWindow.close();
+  const choice = dialog.showMessageBoxSync(mainWindow, {
+    type: 'question',
+    title: '安装更新',
+    message: '即将安装新版本并重启应用',
+    detail: '请确保您的工作内容已保存。是否继续？',
+    buttons: ['立即安装', '取消'],
+    defaultId: 0,
+    cancelId: 1
+  });
+
+  if (choice === 0) {
+    const { quitAndInstall } = require('./updater');
+    // 关键修复：移除所有阻止窗口关闭的监听器
+    if (mainWindow) {
+      mainWindow.removeAllListeners('close');
+      mainWindow.close();
+    }
+    quitAndInstall();
   }
-  quitAndInstall();
 });
 
 // 单实例锁：禁止多开
@@ -230,8 +275,21 @@ if (!gotTheLock) {
     {
       label: '退出',
       click: () => {
-        isQuitting = true;
-        app.quit();
+        // 退出前确认，避免误操作丢失数据
+        const choice = dialog.showMessageBoxSync(mainWindow, {
+          type: 'question',
+          title: '退出应用',
+          message: '确定要退出应用吗？',
+          detail: '退出前请确保您的工作内容已保存。',
+          buttons: ['退出', '取消'],
+          defaultId: 0,
+          cancelId: 1
+        });
+        
+        if (choice === 0) {
+          isQuitting = true;
+          app.quit();
+        }
       }
     }
   ]);
