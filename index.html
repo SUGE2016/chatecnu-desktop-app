@@ -52,6 +52,28 @@
       background: rgba(255,255,255,0.1);
       color: #fff;
     }
+    .titlebar-menu {
+      display: flex;
+      align-items: center;
+    }
+    .update-progress-container {
+      display: flex;
+      align-items: center;
+      margin-right: 10px;
+      display: none;
+    }
+    .loading-spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: #fff;
+      animation: spin 1s linear infinite;
+      margin-right: 6px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
     /* 移除自定义窗口控制按钮的样式 */
   </style>
 </head>
@@ -63,6 +85,10 @@
       <div class="titlebar-title">ChatECNU Desktop</div>
       <!-- 菜单 -->
       <div class="titlebar-menu">
+        <div id="update-progress" class="update-progress-container">
+          <!-- 动态内容 -->
+        </div>
+        <span id="update-status" style="font-size: 12px; margin-right: 10px; display: none;"></span>
         <button id="btn-update">检查更新</button>
       </div>
     </div>
@@ -73,12 +99,78 @@
   <script>
     const { ipcRenderer } = require('electron');
 
+    const statusEl = document.getElementById('update-status');
+    const progressEl = document.getElementById('update-progress');
+    const btnUpdate = document.getElementById('btn-update');
+
+    function showStatus(text, autoHide = false) {
+      progressEl.style.display = 'none';
+      statusEl.style.display = 'inline';
+      statusEl.textContent = text;
+      
+      if (autoHide) {
+        setTimeout(() => {
+          statusEl.style.display = 'none';
+        }, 3000);
+      }
+    }
+
+    function showProgress(percent) {
+      statusEl.style.display = 'none';
+      progressEl.style.display = 'flex';
+      
+      // 计算 SVG 圆环参数
+      const radius = 6;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference - (percent / 100) * circumference;
+      
+      progressEl.innerHTML = `
+        <svg width="16" height="16" viewBox="0 0 16 16" style="transform: rotate(-90deg); margin-right: 6px;">
+          <circle cx="8" cy="8" r="${radius}" stroke="rgba(255,255,255,0.3)" stroke-width="2" fill="none"/>
+          <circle cx="8" cy="8" r="${radius}" stroke="#fff" stroke-width="2" fill="none" 
+                  stroke-dasharray="${circumference}" stroke-dashoffset="${offset}" 
+                  stroke-linecap="round" />
+        </svg>
+        <span style="font-size: 12px;">${percent}%</span>
+      `;
+    }
+
+    function showLoading(text) {
+      statusEl.style.display = 'none';
+      progressEl.style.display = 'flex';
+      progressEl.innerHTML = `
+        <div class="loading-spinner"></div>
+        <span style="font-size: 12px;">${text}</span>
+      `;
+    }
+
     // 绑定事件
-    document.getElementById('btn-update').onclick = () => ipcRenderer.send('check-for-updates');
+    btnUpdate.onclick = () => {
+      ipcRenderer.send('check-for-updates');
+      showLoading('正在检查...');
+    };
 
     // 接收图标数据
     ipcRenderer.on('set-icon', (event, dataUrl) => {
       document.getElementById('app-icon').src = dataUrl;
+    });
+
+    // 接收更新状态
+    ipcRenderer.on('update-message', (event, message) => {
+      if (message.includes('下载中') || message.includes('开始下载')) {
+        showLoading('准备下载...');
+      } else if (message.includes('下载完成')) {
+        showStatus('下载完成', true);
+      } else if (message.includes('发现')) {
+        showStatus(message, false);
+      } else {
+        showStatus(message, true);
+      }
+    });
+
+    // 接收下载进度
+    ipcRenderer.on('update-progress', (event, percent) => {
+      showProgress(percent);
     });
   </script>
 </body>

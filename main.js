@@ -137,6 +137,11 @@ function createWindow() {
     }
   });
 
+  // 确保在自动更新退出时也能正确关闭窗口
+  app.on('before-quit', () => {
+    isQuitting = true;
+  });
+
   // 窗口关闭时
   mainWindow.on('closed', () => {
     mainWindow = null;

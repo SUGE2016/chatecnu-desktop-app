@@ -3,6 +3,7 @@ const { dialog } = require('electron');
 
 let mainWindow = null;
 let isCheckingManually = false;
+let isDownloading = false;
 
 /**
  * 初始化更新器
@@ -14,15 +15,25 @@ function initUpdater(win) {
   // 禁用自动下载，先提示用户
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
+  // 允许更新到预发布版本（如 Beta/Alpha）
+  autoUpdater.allowPrerelease = true;
 
   // 检查更新时
   autoUpdater.on('checking-for-update', () => {
     console.log('[Updater] 正在检查更新...');
+    // 不在这里发送 UI 消息，避免启动自动检查时 UI 闪烁
   });
 
   // 发现新版本
   autoUpdater.on('update-available', (info) => {
     console.log('[Updater] 发现新版本:', info.version);
+    
+    // 如果正在下载，忽略新的检查结果（理论上 autoUpdater 内部应该会处理，但双重保险）
+    if (isDownloading) return;
+
+    if (mainWindow) {
+      mainWindow.webContents.send('update-message', `发现新版本 v${info.version}`);
+    }
     
     dialog.showMessageBox(mainWindow, {
       type: 'info',
@@ -34,7 +45,15 @@ function initUpdater(win) {
       cancelId: 1
     }).then(({ response }) => {
       if (response === 0) {
+        isDownloading = true;
         autoUpdater.downloadUpdate();
+        if (mainWindow) {
+          mainWindow.webContents.send('update-message', '开始下载...');
+        }
+      } else {
+        if (mainWindow) {
+          mainWindow.webContents.send('update-message', '已取消下载');
+        }
       }
     });
   });
@@ -44,6 +63,9 @@ function initUpdater(win) {
     console.log('[Updater] 当前已是最新版本');
     
     if (isCheckingManually) {
+      if (mainWindow) {
+        mainWindow.webContents.send('update-message', '当前已是最新版本');
+      }
       dialog.showMessageBox(mainWindow, {
         type: 'info',
         title: '检查更新',
@@ -61,15 +83,18 @@ function initUpdater(win) {
     
     if (mainWindow) {
       mainWindow.setProgressBar(progress.percent / 100);
+      mainWindow.webContents.send('update-progress', percent);
     }
   });
 
   // 下载完成
   autoUpdater.on('update-downloaded', (info) => {
     console.log('[Updater] 更新下载完成');
+    isDownloading = false;
     
     if (mainWindow) {
       mainWindow.setProgressBar(-1); // 清除进度条
+      mainWindow.webContents.send('update-message', '下载完成');
     }
 
     dialog.showMessageBox(mainWindow, {
@@ -90,18 +115,29 @@ function initUpdater(win) {
   // 更新错误
   autoUpdater.on('error', (err) => {
     console.error('[Updater] 更新错误:', err);
+    isDownloading = false;
     
     if (mainWindow) {
       mainWindow.setProgressBar(-1);
+      mainWindow.webContents.send('update-message', '更新出错');
     }
 
+    // 仅在手动检查时提示错误，避免自动检查打扰用户
     if (isCheckingManually) {
+      let message = '无法连接到更新服务器';
+      if (err.message.includes('Github')) {
+        message = '无法从 GitHub 获取版本信息';
+      } else if (err.message.includes('net::ERR_INTERNET_DISCONNECTED')) {
+        message = '网络连接已断开';
+      }
+
       dialog.showMessageBox(mainWindow, {
-        type: 'error',
+        type: 'warning',
         title: '检查更新失败',
-        message: '无法检查更新',
-        detail: err.message || '请检查网络连接后重试',
-        buttons: ['确定']
+        message: '检查更新时出错',
+        detail: `${message}\n\n如果您确信网络正常，这可能是服务器暂时不可用。`,
+        buttons: ['确定'],
+        noLink: true
       });
       isCheckingManually = false;
     }
@@ -113,9 +149,25 @@ function initUpdater(win) {
  * @param {boolean} manual - 是否手动触发
  */
 function checkForUpdates(manual = false) {
+  if (isDownloading) {
+    console.log('[Updater] 正在下载更新，跳过检查');
+    if (manual && mainWindow) {
+       dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: '正在更新',
+        message: '正在下载更新中，请稍候...',
+        buttons: ['确定']
+      });
+    }
+    return;
+  }
+
   isCheckingManually = manual;
   autoUpdater.checkForUpdates().catch(err => {
     console.error('[Updater] 检查更新失败:', err);
+    if (manual && mainWindow) {
+       mainWindow.webContents.send('update-message', '检查失败');
+    }
   });
 }
 
