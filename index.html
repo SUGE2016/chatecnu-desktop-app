@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>ChatECNU Desktop</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #f1f3f4;
+      font-family: system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    }
+    #titlebar {
+      height: 38px;
+      background: #1a1a2e;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: #fff;
+      user-select: none;
+      -webkit-app-region: drag; /* 允许拖拽 */
+    }
+    .titlebar-left {
+      display: flex;
+      align-items: center;
+      padding-left: 10px;
+    }
+    .titlebar-icon {
+      width: 20px;
+      height: 20px;
+      margin-right: 10px;
+    }
+    .titlebar-title {
+      font-size: 13px;
+      font-weight: 500;
+      margin-right: 20px;
+      opacity: 0.9;
+    }
+    .titlebar-menu button {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+      -webkit-app-region: no-drag;
+    }
+    .titlebar-menu button:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    /* 移除自定义窗口控制按钮的样式 */
+  </style>
+</head>
+<body>
+  <div id="titlebar">
+    <div class="titlebar-left">
+      <!-- 图标 -->
+      <img id="app-icon" class="titlebar-icon" src="" alt="icon">
+      <div class="titlebar-title">ChatECNU Desktop</div>
+      <!-- 菜单 -->
+      <div class="titlebar-menu">
+        <button id="btn-update">检查更新</button>
+      </div>
+    </div>
+    
+    <!-- 原生窗口控件会自动显示在右侧，无需手动添加 -->
+  </div>
+
+  <script>
+    const { ipcRenderer } = require('electron');
+
+    // 绑定事件
+    document.getElementById('btn-update').onclick = () => ipcRenderer.send('check-for-updates');
+
+    // 接收图标数据
+    ipcRenderer.on('set-icon', (event, dataUrl) => {
+      document.getElementById('app-icon').src = dataUrl;
+    });
+  </script>
+</body>
+</html>

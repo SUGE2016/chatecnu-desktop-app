@@ -28,7 +28,7 @@ contextBridge.exposeInMainWorld('tableExporter', {
   }
 });
 
-// 注入 UI 脚本
+// 注入 UI 脚本（表格导出按钮）
 window.addEventListener('DOMContentLoaded', () => {
   const script = document.createElement('script');
   script.textContent = `

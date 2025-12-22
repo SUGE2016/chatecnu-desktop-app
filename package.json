@@ -1,6 +1,6 @@
 {
   "name": "chatecnu-desktop-app",
-  "version": "1.1.9",
+  "version": "1.1.10",
   "description": "Desktop Application for chat.ecnu.edu.cn",
   "main": "main.js",
   "scripts": {
@@ -51,7 +51,14 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ECNU",
+        "repo": "chatecnu-desktop-app"
+      }
+    ]
   },
   "dependencies": {
     "electron-updater": "^6.6.2",

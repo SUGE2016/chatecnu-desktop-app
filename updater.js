@@ -1,8 +1,5 @@
 const { autoUpdater } = require('electron-updater');
-const { dialog, Notification } = require('electron');
-
-// 更新服务器配置 (TODO: 替换为实际的更新服务器 URL)
-const UPDATE_SERVER_URL = process.env.UPDATE_SERVER_URL || 'https://your-update-server.com/updates';
+const { dialog } = require('electron');
 
 let mainWindow = null;
 let isCheckingManually = false;
@@ -13,12 +10,6 @@ let isCheckingManually = false;
  */
 function initUpdater(win) {
   mainWindow = win;
-
-  // 配置更新服务器
-  autoUpdater.setFeedURL({
-    provider: 'generic',
-    url: UPDATE_SERVER_URL
-  });
 
   // 禁用自动下载，先提示用户
   autoUpdater.autoDownload = false;
@@ -37,7 +28,7 @@ function initUpdater(win) {
       type: 'info',
       title: '发现新版本',
       message: `发现新版本 v${info.version}`,
-      detail: info.releaseNotes || '是否立即下载更新？',
+      detail: '是否立即下载更新？',
       buttons: ['立即下载', '稍后提醒'],
       defaultId: 0,
       cancelId: 1
