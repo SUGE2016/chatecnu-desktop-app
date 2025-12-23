@@ -81,16 +81,87 @@
     .update-progress-container {
       display: flex;
       align-items: center;
-      margin-right: 10px;
+      justify-content: center;
+      width: 28px; /* 恢复固定宽度 */
+      height: 28px; /* 恢复固定高度 */
+      margin-right: 0;
       display: none;
     }
     .loading-spinner {
-      width: 14px;
+      width: 14px; /* 恢复 Spinner 尺寸 */
       height: 14px;
       border: 2px solid rgba(255, 255, 255, 0.3);
       border-radius: 50%;
       border-top-color: #fff;
       animation: spin 1s linear infinite;
+    }
+    .app-version {
+      opacity: 0.5;
+      font-size: 11px;
+      margin-left: 6px;
+      font-weight: normal;
+    }
+    .update-wrapper {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 32px; /* 恢复容器最小宽度 */
+      height: 32px;    /* 恢复容器高度 */
+    }
+    /* 增加选择器权重以覆盖 .titlebar-menu button 的 padding 样式 */
+    .titlebar-menu .btn-update-icon {
+      background: transparent;
+      border: none;
+      color: rgba(255,255,255,0.7);
+      padding: 0;   /* 关键：覆盖默认的 4px 10px padding */
+      width: 28px;  /* 恢复按钮容器尺寸 */
+      height: 28px;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .titlebar-menu .btn-update-icon:hover {
+      background: rgba(255,255,255,0.1);
+      color: #fff;
+    }
+    .titlebar-menu .btn-update-icon svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0; /* 防止被压缩 */
+    }
+    .btn-update-text {
+      background: #2196f3;
+      border: none;
+      color: #fff;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: all 0.2s;
+      display: none; /* 默认隐藏 */
+    }
+    .btn-update-text:hover {
+      background: #1976d2;
+    }
+    .btn-update-text:disabled {
+      background: rgba(255,255,255,0.1);
+      color: rgba(255,255,255,0.5);
+      cursor: not-allowed;
+    }
+    .badge-dot {
+      position: absolute;
+      top: 2px;
+      right: 2px;
+      width: 8px;
+      height: 8px;
+      background-color: #ff4444;
+      border-radius: 50%;
+      border: 1px solid #1a1a2e;
+      display: none;
     }
     @keyframes spin {
       to { transform: rotate(360deg); }
@@ -103,12 +174,25 @@
     <div class="titlebar-left">
       <!-- 图标 -->
       <img id="app-icon" class="titlebar-icon" src="" alt="icon">
-      <div class="titlebar-title">ChatECNU Desktop</div>
+      <div class="titlebar-title">ChatECNU Desktop<span id="app-version" class="app-version"></span></div>
       <div class="titlebar-menu">
-        <div id="update-ring" class="update-progress-container">
-          <div class="loading-spinner"></div>
+        <div class="update-wrapper">
+          <div id="update-ring" class="update-progress-container">
+            <div class="loading-spinner"></div>
+          </div>
+          <!-- 升级图标按钮 (初始状态) -->
+          <button id="btn-check-icon" class="btn-update-icon" title="点击检查新版本">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="16 12 12 8 8 12"></polyline>
+              <line x1="12" y1="16" x2="12" y2="8"></line>
+            </svg>
+          </button>
+          <!-- 文本操作按钮 (有更新/下载/安装状态) -->
+          <button id="btn-update-action" class="btn-update-text">立即下载</button>
+          <!-- 新版本角标 -->
+          <div id="update-badge" class="badge-dot"></div>
         </div>
-        <button id="btn-update">检查更新</button>
       </div>
     </div>
     
@@ -129,8 +213,11 @@
     const { ipcRenderer } = require('electron');
 
     const ringContainer = document.getElementById('update-ring');
-    const btnUpdate = document.getElementById('btn-update');
+    const btnCheckIcon = document.getElementById('btn-check-icon');
+    const btnUpdateAction = document.getElementById('btn-update-action');
+    const updateBadge = document.getElementById('update-badge');
     const btnRefresh = document.getElementById('btn-refresh');
+    const appVersion = document.getElementById('app-version');
     
     let isUpdateAvailable = false;
     let isUpdateDownloaded = false;
@@ -140,8 +227,7 @@
       ipcRenderer.send('reload-page');
     };
 
-    // 显示/隐藏 Loading Ring
-    // type: 'spinner' (转圈) | 'progress' (进度) | 'none' (隐藏)
+    // UI 状态控制
     function setRingState(type, percent = 0) {
       if (type === 'none') {
         ringContainer.style.display = 'none';
@@ -169,26 +255,66 @@
       }
     }
 
-    // 绑定事件
-    btnUpdate.onclick = () => {
+    function showState(state) {
+      // 重置所有显示
+      btnCheckIcon.style.display = 'none';
+      btnUpdateAction.style.display = 'none';
+      updateBadge.style.display = 'none';
+      
+      switch (state) {
+        case 'idle': // 初始状态：显示图标
+          btnCheckIcon.style.display = 'flex';
+          setRingState('none');
+          break;
+        case 'checking': // 检查中：显示 Ring
+          setRingState('spinner');
+          break;
+        case 'available': // 有更新：显示下载按钮 + 角标
+          btnUpdateAction.style.display = 'block';
+          btnUpdateAction.textContent = '立即下载';
+          btnUpdateAction.disabled = false;
+          updateBadge.style.display = 'block';
+          setRingState('none');
+          break;
+        case 'downloading': // 下载中：显示 Ring + 禁用按钮
+          btnUpdateAction.style.display = 'block';
+          btnUpdateAction.textContent = '下载中...';
+          btnUpdateAction.disabled = true;
+          setRingState('progress', 0);
+          break;
+        case 'downloaded': // 下载完成：显示安装按钮 + 角标
+          btnUpdateAction.style.display = 'block';
+          btnUpdateAction.textContent = '立即安装';
+          btnUpdateAction.disabled = false;
+          updateBadge.style.display = 'block';
+          setRingState('none');
+          break;
+      }
+    }
+
+    // 初始化状态
+    showState('idle');
+
+    // 按钮事件：检查更新
+    btnCheckIcon.onclick = () => {
+      ipcRenderer.send('check-for-updates');
+      showState('checking');
+    };
+
+    // 按钮事件：下载/安装
+    btnUpdateAction.onclick = () => {
       if (isUpdateDownloaded) {
-        // 状态3：点击安装
         ipcRenderer.send('install-update');
-        // 不禁用按钮，以便用户在取消弹窗后能再次点击
-        // 弹窗是模态的，会阻止重复点击
-      } else if (isUpdateAvailable) {
-        // 状态2：点击下载
-        ipcRenderer.send('download-update');
-        btnUpdate.textContent = '下载中...'; 
-        btnUpdate.disabled = true; 
-        setRingState('progress', 0); // 初始显示 0% 进度环
       } else {
-        // 状态1：检查更新
-        ipcRenderer.send('check-for-updates');
-        btnUpdate.disabled = true;
-        setRingState('spinner');
+        ipcRenderer.send('download-update');
+        showState('downloading');
       }
     };
+
+    // 接收版本号
+    ipcRenderer.on('set-version', (event, version) => {
+      if (appVersion) appVersion.textContent = 'v' + version;
+    });
 
     // 接收图标数据
     ipcRenderer.on('set-icon', (event, dataUrl) => {
@@ -198,20 +324,16 @@
     // 发现新版本
     ipcRenderer.on('update-available', (event, info) => {
       isUpdateAvailable = true;
-      setRingState('none'); 
-      btnUpdate.disabled = false;
-      btnUpdate.textContent = '立即下载';
+      showState('available');
     });
 
     // 无新版本
     ipcRenderer.on('update-not-available', () => {
       isUpdateAvailable = false;
-      setRingState('none');
-      btnUpdate.disabled = false;
-      btnUpdate.textContent = '检查更新';
+      showState('idle'); // 恢复初始状态
     });
 
-    // 下载中（接收进度数字）
+    // 下载中
     ipcRenderer.on('update-download-progress', (event, percent) => {
       setRingState('progress', percent);
     });
@@ -219,18 +341,14 @@
     // 下载完成
     ipcRenderer.on('update-downloaded', () => {
       isUpdateDownloaded = true;
-      setRingState('none');
-      btnUpdate.disabled = false;
-      btnUpdate.textContent = '立即安装';
+      showState('downloaded');
     });
 
     // 错误处理
     ipcRenderer.on('update-error', () => {
-      setRingState('none');
-      btnUpdate.disabled = false;
-      btnUpdate.textContent = '检查更新'; 
       isUpdateAvailable = false;
       isUpdateDownloaded = false;
+      showState('idle'); // 恢复初始状态
     });
     
     // 兼容旧消息

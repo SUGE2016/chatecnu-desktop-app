@@ -74,7 +74,18 @@ function initUpdater(win) {
 function checkForUpdates() {
   if (isDownloading) return;
   console.log('[Updater] 触发检查更新');
-  autoUpdater.checkForUpdates().catch(err => {
+
+  // 设置 15 秒超时
+  const timeoutPromise = new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error('检查更新超时，请稍后重试'));
+    }, 15000);
+  });
+
+  Promise.race([
+    autoUpdater.checkForUpdates(),
+    timeoutPromise
+  ]).catch(err => {
     console.error('[Updater] 检查更新失败:', err);
     if (mainWindow) {
       mainWindow.webContents.send('update-error', err.message);

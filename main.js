@@ -59,6 +59,8 @@ function createWindow() {
     // 读取图标并转换为 dataURL 发送给渲染进程
     const icon = nativeImage.createFromPath(iconPath);
     mainWindow.webContents.send('set-icon', icon.toDataURL());
+    // 发送版本号
+    mainWindow.webContents.send('set-version', version);
     // 同步最大化状态
     mainWindow.webContents.send('maximize-change', mainWindow.isMaximized());
   });
